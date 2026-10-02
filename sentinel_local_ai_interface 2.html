@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SENTINEL // Minimal Local AI</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <!-- Tailwind Config -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        cyber: {
+                            bg: '#090a0f',
+                            card: 'rgba(15, 20, 30, 0.6)',
+                            border: 'rgba(255, 255, 255, 0.08)',
+                            cyan: '#00f2fe',
+                            violet: '#7928ca'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['"Inter"', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #090a0f;
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Subtle Ambient Glow Effect */
+        .ambient-glow {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(0, 242, 254, 0.03) 0%, rgba(121, 40, 202, 0.03) 50%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Glassmorphism Input Frame */
+        .glass-panel {
+            background: rgba(15, 21, 32, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+        }
+
+        .glass-panel:focus-within {
+            border-color: rgba(0, 242, 254, 0.4);
+            box-shadow: 0 0 25px rgba(0, 242, 254, 0.12), 0 10px 30px -10px rgba(0, 0, 0, 0.6);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 2px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #00f2fe;
+        }
+
+        /* Typing cursor effect */
+        .typing-cursor::after {
+            content: '▌';
+            color: #00f2fe;
+            animation: blink 0.8s infinite;
+            margin-left: 2px;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-cyber-cyan/20 selection:text-cyber-cyan relative overflow-x-hidden">
+
+    <!-- Ambient Glow Background -->
+    <div class="ambient-glow"></div>
+
+    <!-- Minimal Top Header -->
+    <header class="relative z-10 py-5 px-6 sm:px-12 flex items-center justify-between border-b border-white/[0.04]">
+        <div class="flex items-center space-x-3">
+            <span class="font-extrabold text-lg tracking-widest text-white font-mono">SENTINEL</span>
+            <span class="text-[10px] font-mono text-slate-500">• SINGLE USER</span>
+        </div>
+
+        <div class="flex items-center space-x-2 text-xs font-mono text-slate-400 bg-white/[0.03] px-3 py-1.5 rounded-full border border-white/[0.06]">
+            <span class="relative flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span id="status-text">LOCAL :: 11434</span>
+        </div>
+    </header>
+
+    <!-- Centered Content Wrapper -->
+    <main class="relative z-10 flex-grow flex flex-col justify-center items-center max-w-3xl w-full mx-auto px-4 py-8">
+        
+        <!-- Conversation Stream Display -->
+        <div id="chat-container" class="w-full space-y-6 mb-6 overflow-y-auto max-h-[55vh] pr-1 hidden transition-all duration-300">
+            <div id="message-stream" class="space-y-6"></div>
+        </div>
+
+        <!-- Initial Centered Brand Prompt Header (Hidden after first prompt) -->
+        <div id="hero-header" class="text-center mb-8 transition-all duration-300">
+            <h1 class="text-3xl sm:text-4xl font-extralight tracking-tight text-white mb-2">
+                Local Intelligence Studio
+            </h1>
+            <p class="text-xs sm:text-sm text-slate-400 font-mono">Direct localhost loopback • Zero internet telemetry</p>
+        </div>
+
+        <!-- Centered Minimalist Input Box -->
+        <div class="w-full relative group">
+            <div class="glass-panel rounded-2xl p-3 sm:p-4 transition-all duration-300">
+                <form id="sentinel-form" onsubmit="handleFormSubmit(event)" class="flex flex-col space-y-3">
+                    
+                    <textarea 
+                        id="sentinel-input" 
+                        rows="2"
+                        placeholder="Ask Sentinel or enter command..."
+                        class="w-full bg-transparent text-white placeholder-slate-500 focus:outline-none font-mono text-sm border-none focus:ring-0 resize-none px-2 py-1"
+                        onkeydown="handleKeyDown(event)"
+                        oninput="autoResizeTextarea(this)"
+                    ></textarea>
+
+                    <!-- Minimal Input Toolbar -->
+                    <div class="flex items-center justify-between pt-2 border-t border-white/[0.05] font-mono text-xs">
+                        <div class="flex items-center space-x-3 text-slate-500">
+                            <button type="button" onclick="clearHistory()" class="hover:text-rose-400 transition-colors text-[11px]" title="Clear screen">
+                                <i class="fa-solid fa-trash-can mr-1"></i> Clear
+                            </button>
+                            <span class="text-[10px] text-slate-600 hidden sm:inline">Shift + Enter = new line</span>
+                        </div>
+
+                        <div class="flex items-center space-x-2">
+                            <button 
+                                type="button"
+                                id="stop-btn"
+                                onclick="stopGeneration()"
+                                class="hidden items-center space-x-1 px-3 py-1.5 rounded-lg bg-rose-950/60 border border-rose-800/60 text-rose-300 font-mono text-xs hover:bg-rose-900/60 transition-all"
+                            >
+                                <i class="fa-solid fa-square text-[9px]"></i>
+                                <span>STOP</span>
+                            </button>
+
+                            <button 
+                                type="submit" 
+                                id="send-btn"
+                                class="flex items-center justify-center w-8 h-8 rounded-xl bg-cyber-cyan/10 hover:bg-cyber-cyan text-cyber-cyan hover:text-slate-950 border border-cyber-cyan/30 transition-all duration-200 cursor-pointer"
+                                title="Send Prompt"
+                            >
+                                <i class="fa-solid fa-arrow-up text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Quick Preset Buttons -->
+            <div id="presets-bar" class="flex flex-wrap items-center justify-center gap-2 mt-4 font-mono text-xs">
+                <button onclick="usePreset('/explain Explain how local quantized LLMs work in simple terms.')" class="px-3 py-1 rounded-full bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] text-slate-400 hover:text-cyber-cyan transition-all">
+                    /explain
+                </button>
+                <button onclick="usePreset('/summarize Summarize the privacy advantages of running models locally.')" class="px-3 py-1 rounded-full bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] text-slate-400 hover:text-cyber-cyan transition-all">
+                    /summarize
+                </button>
+                <button onclick="usePreset('/code Write a lightweight JavaScript async fetch function for Ollama.')" class="px-3 py-1 rounded-full bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] text-slate-400 hover:text-cyber-cyan transition-all">
+                    /code
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Minimal Footer -->
+    <footer class="relative z-10 py-4 px-6 text-center text-slate-600 font-mono text-[11px]">
+        <span>SENTINEL INTERFACE v2.0 // OFFLINE LOCAL ENGINE</span>
+    </footer>
+
+    <script>
+        const OLLAMA_ENDPOINT = 'http://localhost:11434/api/generate';
+        let isGenerating = false;
+        let abortController = null;
+
+        function autoResizeTextarea(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 160) + 'px';
+        }
+
+        function handleKeyDown(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleFormSubmit(e);
+            }
+        }
+
+        function usePreset(text) {
+            const input = document.getElementById('sentinel-input');
+            input.value = text;
+            autoResizeTextarea(input);
+            input.focus();
+        }
+
+        function clearHistory() {
+            document.getElementById('message-stream').innerHTML = '';
+            document.getElementById('chat-container').classList.add('hidden');
+            document.getElementById('hero-header').classList.remove('hidden');
+        }
+
+        async function handleFormSubmit(e) {
+            if (e) e.preventDefault();
+            
+            const inputEl = document.getElementById('sentinel-input');
+            const promptText = inputEl.value.trim();
+
+            if (!promptText || isGenerating) return;
+
+            // Transition UI from initial landing view to chat stream
+            document.getElementById('hero-header').classList.add('hidden');
+            const chatContainer = document.getElementById('chat-container');
+            chatContainer.classList.remove('hidden');
+
+            isGenerating = true;
+            toggleStopButton(true);
+
+            inputEl.value = '';
+            autoResizeTextarea(inputEl);
+
+            // Append User Prompt
+            appendUserMessage(promptText);
+
+            // Append AI Response Placeholder
+            const aiMsgId = 'ai-' + Date.now();
+            appendAiContainer(aiMsgId);
+
+            // Attempt live fetch to localhost:11434 with fallback stream simulation
+            try {
+                abortController = new AbortController();
+
+                const response = await fetch(OLLAMA_ENDPOINT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: abortController.signal,
+                    body: JSON.stringify({
+                        model: 'llama3',
+                        prompt: promptText,
+                        stream: false
+                    })
+                });
+
+                if (!response.ok) throw new Error('Local server offline');
+
+                const data = await response.json();
+                renderAiText(aiMsgId, data.response || 'No output generated.');
+            } catch (err) {
+                if (err.name === 'AbortError') {
+                    renderAiText(aiMsgId, '_[Generation stopped by user]_');
+                } else {
+                    // Seamless fallback simulation for offline/school presentation demo
+                    simulateStreamResponse(promptText, aiMsgId);
+                }
+            } finally {
+                if (!abortController?.signal?.aborted) {
+                    isGenerating = false;
+                    toggleStopButton(false);
+                }
+            }
+        }
+
+        function stopGeneration() {
+            if (abortController) {
+                abortController.abort();
+            }
+            isGenerating = false;
+            toggleStopButton(false);
+        }
+
+        function toggleStopButton(show) {
+            const sendBtn = document.getElementById('send-btn');
+            const stopBtn = document.getElementById('stop-btn');
+            if (show) {
+                sendBtn.classList.add('hidden');
+                stopBtn.classList.remove('hidden');
+                stopBtn.classList.add('flex');
+            } else {
+                sendBtn.classList.remove('hidden');
+                stopBtn.classList.add('hidden');
+                stopBtn.classList.remove('flex');
+            }
+        }
+
+        function appendUserMessage(text) {
+            const stream = document.getElementById('message-stream');
+            const userDiv = document.createElement('div');
+            userDiv.className = 'flex justify-end';
+            userDiv.innerHTML = `
+                <div class="max-w-xl bg-white/[0.04] border border-white/[0.08] rounded-2xl px-4 py-3 text-sm text-slate-200 font-sans">
+                    <p class="whitespace-pre-wrap">${escapeHtml(text)}</p>
+                </div>
+            `;
+            stream.appendChild(userDiv);
+            scrollToBottom();
+        }
+
+        function appendAiContainer(id) {
+            const stream = document.getElementById('message-stream');
+            const aiDiv = document.createElement('div');
+            aiDiv.id = id;
+            aiDiv.className = 'flex justify-start items-start space-x-3';
+            aiDiv.innerHTML = `
+                <div class="w-6 h-6 rounded-full bg-cyber-cyan/10 border border-cyber-cyan/30 text-cyber-cyan flex items-center justify-center text-[10px] font-mono shrink-0 mt-1">
+                    S
+                </div>
+                <div class="max-w-xl text-sm text-slate-300 font-sans leading-relaxed ai-content typing-cursor">
+                    <span class="text-slate-500 font-mono text-xs">Processing local tensors...</span>
+                </div>
+            `;
+            stream.appendChild(aiDiv);
+            scrollToBottom();
+        }
+
+        function renderAiText(id, text) {
+            const container = document.getElementById(id);
+            if (!container) return;
+            const content = container.querySelector('.ai-content');
+            content.classList.remove('typing-cursor');
+            content.innerHTML = formatMarkdown(text);
+            scrollToBottom();
+        }
+
+        function simulateStreamResponse(prompt, aiMsgId) {
+            let responseText = "Sentinel is operating in **offline demonstration mode**.\n\nTo connect to your live local engine, start your Ollama daemon on `localhost:11434` with CORS enabled:\n\n```bash\nOLLAMA_ORIGINS=\"*\" ollama serve\n```\n\nYour prompt processing executes entirely on host GPU/CPU memory with zero cloud tracking.";
+            
+            const lower = prompt.toLowerCase();
+            if (lower.includes('/explain')) {
+                responseText = "### Local LLM Quantization\n\nQuantization compresses neural network weights from 16-bit floating points to 4-bit or 8-bit integers (`GGUF` formats). This enables high-speed execution directly on local VRAM with near-lossless accuracy.";
+            } else if (lower.includes('/code')) {
+                responseText = "Here is a clean JavaScript function to query your local Ollama instance:\n\n```javascript\nasync function askSentinel(prompt) {\n    const res = await fetch('http://localhost:11434/api/generate', {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json' },\n        body: JSON.stringify({ model: 'llama3', prompt: prompt, stream: false })\n    });\n    const data = await res.json();\n    return data.response;\n}\n```";
+            } else if (lower.includes('/summarize')) {
+                responseText = "### Key Local Privacy Benefits\n\n1. **Zero Data Leakage:** Code and prompts stay on loopback address `127.0.0.1`.\n2. **Air-Gapped Operation:** Functions fully without internet access.\n3. **Zero API Costs:** Unlimited inference tokens.";
+            }
+
+            const container = document.getElementById(aiMsgId);
+            if (!container) return;
+            const content = container.querySelector('.ai-content');
+            content.innerHTML = '';
+
+            let index = 0;
+            const interval = setInterval(() => {
+                index += 3;
+                content.innerHTML = formatMarkdown(responseText.slice(0, index));
+                scrollToBottom();
+
+                if (index >= responseText.length) {
+                    clearInterval(interval);
+                    content.classList.remove('typing-cursor');
+                    isGenerating = false;
+                    toggleStopButton(false);
+                }
+            }, 15);
+        }
+
+        function formatMarkdown(text) {
+            let formatted = text.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
+                return `
+                    <div class="my-3 rounded-xl overflow-hidden border border-white/[0.08] bg-black/60 font-mono text-xs">
+                        <div class="flex items-center justify-between px-3 py-1.5 bg-white/[0.03] border-b border-white/[0.06] text-slate-400">
+                            <span>${lang || 'code'}</span>
+                            <button onclick="copyCode(this)" class="hover:text-cyber-cyan transition-colors">
+                                <i class="fa-regular fa-copy mr-1"></i> Copy
+                            </button>
+                        </div>
+                        <pre class="p-3 overflow-x-auto text-cyan-300"><code>${escapeHtml(code.trim())}</code></pre>
+                    </div>
+                `;
+            });
+
+            formatted = formatted.replace(/`([^`]+)`/g, '<code class="bg-white/[0.06] text-cyber-cyan px-1.5 py-0.5 rounded font-mono text-xs">$1</code>');
+            formatted = formatted.replace(/^### (.*$)/gim, '<h3 class="text-sm font-bold text-white mt-3 mb-1 font-mono">$1</h3>');
+            formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-semibold">$1</strong>');
+            formatted = formatted.replace(/\n/g, '<br>');
+
+            return formatted;
+        }
+
+        function copyCode(btn) {
+            const code = btn.closest('.my-3').querySelector('code').innerText;
+            const textarea = document.createElement('textarea');
+            textarea.value = code;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+
+            btn.innerHTML = '<i class="fa-solid fa-check text-emerald-400 mr-1"></i> Copied';
+            setTimeout(() => {
+                btn.innerHTML = '<i class="fa-regular fa-copy mr-1"></i> Copy';
+            }, 2000);
+        }
+
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function scrollToBottom() {
+            const container = document.getElementById('chat-container');
+            container.scrollTop = container.scrollHeight;
+        }
+    </script>
+</body>
+</html>
